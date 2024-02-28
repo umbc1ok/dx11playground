@@ -77,4 +77,7 @@
       <Filter>Pliki zasobów</Filter>
     </FxCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
 </Project>

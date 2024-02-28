@@ -1,28 +1,25 @@
-
-struct VS_Input
+struct VS_OUTPUT
 {
-    float2 pos : POS;
-    float2 uv : TEX;
+    float4 Pos : SV_POSITION;
+    float4 Color : COLOR;
 };
 
-struct VS_Output
+cbuffer cbPerObject
 {
-    float4 pos : SV_POSITION;
-    float2 uv : TEXCOORD;
+    float4x4 WVP;
 };
 
-Texture2D mytexture : register(t0);
-SamplerState mysampler : register(s0);
-
-VS_Output vs_main(VS_Input input)
+VS_OUTPUT VS(float4 inPos : POSITION, float4 inColor : COLOR)
 {
-    VS_Output output;
-    output.pos = float4(input.pos, 0.0f, 1.0f);
-    output.uv = input.uv;
+    VS_OUTPUT output;
+
+    output.Pos = inPos;
+    output.Color = inColor;
+
     return output;
 }
 
-float4 ps_main(VS_Output input) : SV_Target
+float4 PS(VS_OUTPUT input) : SV_TARGET
 {
-    return mytexture.Sample(mysampler, input.uv);
+    return input.Color;
 }

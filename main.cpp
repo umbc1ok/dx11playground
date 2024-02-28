@@ -41,6 +41,11 @@ ID3DBlob* VS_blob;
 ID3DBlob* PS_blob;
 ID3D11InputLayout* vertLayout;
 ID3D11Buffer* cbPerObjectBuffer;
+ID3D11RasterizerState* rasterizerState;
+
+
+
+
 
 DirectX::XMMATRIX WVP;
 DirectX::XMMATRIX World;
@@ -94,7 +99,6 @@ struct cbPerObject
 	DirectX::XMMATRIX WVP; // wvp = world view projection
 };
 cbPerObject cbPerObj;
-
 
 
 
@@ -283,6 +287,14 @@ bool InitializeDirect3d11App(HINSTANCE hInstance)
 
 	hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
 
+	// Here you can set drawmode (wireframe or solid)
+	D3D11_RASTERIZER_DESC wfdesc;
+	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
+	wfdesc.CullMode = D3D11_CULL_NONE;
+	hr = d3d11Device->CreateRasterizerState(&wfdesc, &rasterizerState);
+
+	d3d11DevCon->RSSetState(rasterizerState);
 
 
 	return true;
@@ -307,6 +319,8 @@ void CleanUp()
 	depthStencilBuffer->Release();
 	///////////////**************new**************////////////////////
 	cbPerObjectBuffer->Release();
+	rasterizerState->Release();
+
 }
 
 bool InitScene()

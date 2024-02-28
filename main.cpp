@@ -11,6 +11,19 @@
 
 #pragma comment(lib, "d3d11.lib")
 
+
+
+
+// OBJECTS //
+DirectX::XMMATRIX cube1World;
+DirectX::XMMATRIX cube2World;
+
+DirectX::XMMATRIX Rotation;
+DirectX::XMMATRIX Scale;
+DirectX::XMMATRIX Translation;
+float rot = 0.01f;
+
+
 //Global Declarations - Interfaces//
 IDXGISwapChain* SwapChain;
 ID3D11Device* d3d11Device;
@@ -315,22 +328,47 @@ bool InitScene()
 	//Create the vertex buffer
 	Vertex v[] =
 	{
-		Vertex(-0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 1.0f),
-		Vertex(-0.5f,  0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 1.0f),
-		Vertex(0.5f,  0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f),
-		Vertex(0.5f, -0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 1.0f),
+		Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f),
+		Vertex(-1.0f, +1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f),
+		Vertex(+1.0f, +1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f),
+		Vertex(+1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 1.0f),
+		Vertex(-1.0f, -1.0f, +1.0f, 0.0f, 1.0f, 1.0f, 1.0f),
+		Vertex(-1.0f, +1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f),
+		Vertex(+1.0f, +1.0f, +1.0f, 1.0f, 0.0f, 1.0f, 1.0f),
+		Vertex(+1.0f, -1.0f, +1.0f, 1.0f, 0.0f, 0.0f, 1.0f),
 	};
 
 	DWORD indices[] = {
+		// front face
 		0, 1, 2,
 		0, 2, 3,
+
+		// back face
+		4, 6, 5,
+		4, 7, 6,
+
+		// left face
+		4, 5, 1,
+		4, 1, 0,
+
+		// right face
+		3, 2, 6,
+		3, 6, 7,
+
+		// top face
+		1, 5, 6,
+		1, 6, 2,
+
+		// bottom face
+		4, 0, 3,
+		4, 3, 7
 	};
 
 	D3D11_BUFFER_DESC indexBufferDesc;
 	ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
 
 	indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	indexBufferDesc.ByteWidth = sizeof(DWORD) * 2 * 3;
+	indexBufferDesc.ByteWidth = sizeof(DWORD) * 12 * 3;
 	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	indexBufferDesc.CPUAccessFlags = 0;
 	indexBufferDesc.MiscFlags = 0;
@@ -347,7 +385,7 @@ bool InitScene()
 	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 
 	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	vertexBufferDesc.ByteWidth = sizeof(Vertex) * 4;
+	vertexBufferDesc.ByteWidth = sizeof(Vertex) * 8;
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vertexBufferDesc.CPUAccessFlags = 0;
 	vertexBufferDesc.MiscFlags = 0;
@@ -390,7 +428,7 @@ bool InitScene()
 	d3d11DevCon->RSSetViewports(1, &viewport);
 
 	// Setup camera
-	camPosition = DirectX::XMVectorSet(0.0f, 0.0f, -0.5f, 0.0f);
+	camPosition = DirectX::XMVectorSet(0.0f, 3.0f, -8.0f, 0.0f);
 	camTarget = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
 	camUp = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
@@ -409,7 +447,31 @@ bool InitScene()
 
 void UpdateScene()
 {
+	//Keep the cubes rotating
+	rot += .0005f;
+	if (rot > 6.28f)
+		rot = 0.0f;
 
+	//Reset cube1World
+	cube1World = DirectX::XMMatrixIdentity();
+
+	//Define cube1's world space matrix
+	DirectX::XMVECTOR rotaxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	Rotation = DirectX::XMMatrixRotationAxis(rotaxis, rot);
+	Translation = DirectX::XMMatrixTranslation(0.0f, 0.0f, 4.0f);
+
+	//Set cube1's world space using the transformations
+	cube1World = Translation * Rotation;
+
+	//Reset cube2World
+	cube2World = DirectX::XMMatrixIdentity();
+
+	//Define cube2's world space matrix
+	Rotation = DirectX::XMMatrixRotationAxis(rotaxis, -rot);
+	Scale = DirectX::XMMatrixScaling(1.3f, 1.3f, 1.3f);
+
+	//Set cube2's world space matrix
+	cube2World = Rotation * Scale;
 }
 
 void DrawScene()
@@ -423,8 +485,23 @@ void DrawScene()
 	d3d11DevCon->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 	///////////////**************new**************////////////////////
 
-	//Draw the triangle
-	d3d11DevCon->DrawIndexed(6, 0, 0);
+	// UPDATE WVP MATRIX and send it to constant buffer
+	WVP = cube1World * camView * camProjection;
+	cbPerObj.WVP = XMMatrixTranspose(WVP);
+	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
+	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
+	//Draw the first cube
+	d3d11DevCon->DrawIndexed(36, 0, 0);
+
+	// UPDATE WVP MATRIX and send it to constant buffer
+	WVP = cube2World * camView * camProjection;
+	cbPerObj.WVP = XMMatrixTranspose(WVP);
+	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
+	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
+	//Draw the second cube
+	d3d11DevCon->DrawIndexed(36, 0, 0);
 
 	//Present the backbuffer to the screen
 	SwapChain->Present(0, 0);

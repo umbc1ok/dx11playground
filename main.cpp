@@ -259,6 +259,19 @@ bool InitializeDirect3d11App(HINSTANCE hInstance)
 	d3d11DevCon->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
 	///////////////**************new**************////////////////////
 
+	D3D11_BUFFER_DESC cbbd;
+	ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+
+	cbbd.Usage = D3D11_USAGE_DEFAULT;
+	cbbd.ByteWidth = sizeof(cbPerObject);
+	cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbbd.CPUAccessFlags = 0;
+	cbbd.MiscFlags = 0;
+
+	hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
+
+
+
 	return true;
 }
 
@@ -285,6 +298,7 @@ void CleanUp()
 
 bool InitScene()
 {
+
 	//Compile Shaders from shader file
 	
 	hr = D3DCompileFromFile(L"shaders.hlsl", nullptr, nullptr, "VS", "vs_5_0",0,0, &VS_blob, nullptr);	// might be wrong, check with https://learn.microsoft.com/en-us/windows/win32/api/d3dcompiler/nf-d3dcompiler-d3dcompilefromfile
@@ -374,6 +388,21 @@ bool InitScene()
 
 	//Set the Viewport
 	d3d11DevCon->RSSetViewports(1, &viewport);
+
+	// Setup camera
+	camPosition = DirectX::XMVectorSet(0.0f, 0.0f, -0.5f, 0.0f);
+	camTarget = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	camUp = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+	camView = DirectX::XMMatrixLookAtLH(camPosition, camTarget, camUp);
+	camProjection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)Width / Height, 1.0f, 1000.0f);
+
+	World = DirectX::XMMatrixIdentity();
+	WVP = World * camView * camProjection;
+
+	cbPerObj.WVP = XMMatrixTranspose(WVP);
+	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
+	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
 	return true;
 }

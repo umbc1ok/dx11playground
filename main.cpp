@@ -8,6 +8,7 @@
 
 
 #include <DirectXMath.h>
+#include <WICTextureLoader.h>
 
 #pragma comment(lib, "d3d11.lib")
 
@@ -43,7 +44,8 @@ ID3D11InputLayout* vertLayout;
 ID3D11Buffer* cbPerObjectBuffer;
 ID3D11RasterizerState* rasterizerState;
 
-
+ID3D11ShaderResourceView* CubesTexture;
+ID3D11SamplerState* CubesTexSamplerState;
 
 
 
@@ -87,11 +89,11 @@ struct Vertex	//Overloaded Vertex Structure
 {
 	Vertex() {}
 	Vertex(float x, float y, float z,
-		float cr, float cg, float cb, float ca)
-		: pos(x, y, z), color(cr, cg, cb, ca) {}
+		float tu, float tv)
+		: pos(x, y, z), texCoord(tu,tv) {}
 
 	DirectX::XMFLOAT3 pos;
-	DirectX::XMFLOAT4 color;
+	DirectX::XMFLOAT2 texCoord;
 };
 
 struct cbPerObject
@@ -105,7 +107,7 @@ cbPerObject cbPerObj;
 D3D11_INPUT_ELEMENT_DESC layout[] =
 {
 	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 };
 UINT numElements = ARRAYSIZE(layout);
 
@@ -290,7 +292,7 @@ bool InitializeDirect3d11App(HINSTANCE hInstance)
 	// Here you can set drawmode (wireframe or solid)
 	D3D11_RASTERIZER_DESC wfdesc;
 	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
-	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
+	wfdesc.FillMode = D3D11_FILL_SOLID;
 	wfdesc.CullMode = D3D11_CULL_NONE;
 	hr = d3d11Device->CreateRasterizerState(&wfdesc, &rasterizerState);
 
@@ -342,14 +344,41 @@ bool InitScene()
 	//Create the vertex buffer
 	Vertex v[] =
 	{
-		Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f),
-		Vertex(-1.0f, +1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f),
-		Vertex(+1.0f, +1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f),
-		Vertex(+1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 1.0f),
-		Vertex(-1.0f, -1.0f, +1.0f, 0.0f, 1.0f, 1.0f, 1.0f),
-		Vertex(-1.0f, +1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f),
-		Vertex(+1.0f, +1.0f, +1.0f, 1.0f, 0.0f, 1.0f, 1.0f),
-		Vertex(+1.0f, -1.0f, +1.0f, 1.0f, 0.0f, 0.0f, 1.0f),
+		// Front Face
+		Vertex(-1.0f, -1.0f, -1.0f, 0.0f, 1.0f),
+		Vertex(-1.0f,  1.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(1.0f,  1.0f, -1.0f, 1.0f, 0.0f),
+		Vertex(1.0f, -1.0f, -1.0f, 1.0f, 1.0f),
+
+		// Back Face
+		Vertex(-1.0f, -1.0f, 1.0f, 1.0f, 1.0f),
+		Vertex(1.0f, -1.0f, 1.0f, 0.0f, 1.0f),
+		Vertex(1.0f,  1.0f, 1.0f, 0.0f, 0.0f),
+		Vertex(-1.0f,  1.0f, 1.0f, 1.0f, 0.0f),
+
+		// Top Face
+		Vertex(-1.0f, 1.0f, -1.0f, 0.0f, 1.0f),
+		Vertex(-1.0f, 1.0f,  1.0f, 0.0f, 0.0f),
+		Vertex(1.0f, 1.0f,  1.0f, 1.0f, 0.0f),
+		Vertex(1.0f, 1.0f, -1.0f, 1.0f, 1.0f),
+
+		// Bottom Face
+		Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 1.0f),
+		Vertex(1.0f, -1.0f, -1.0f, 0.0f, 1.0f),
+		Vertex(1.0f, -1.0f,  1.0f, 0.0f, 0.0f),
+		Vertex(-1.0f, -1.0f,  1.0f, 1.0f, 0.0f),
+
+		// Left Face
+		Vertex(-1.0f, -1.0f,  1.0f, 0.0f, 1.0f),
+		Vertex(-1.0f,  1.0f,  1.0f, 0.0f, 0.0f),
+		Vertex(-1.0f,  1.0f, -1.0f, 1.0f, 0.0f),
+		Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 1.0f),
+
+		// Right Face
+		Vertex(1.0f, -1.0f, -1.0f, 0.0f, 1.0f),
+		Vertex(1.0f,  1.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(1.0f,  1.0f,  1.0f, 1.0f, 0.0f),
+		Vertex(1.0f, -1.0f,  1.0f, 1.0f, 1.0f),
 	};
 
 	DWORD indices[] = {
@@ -359,23 +388,23 @@ bool InitScene()
 
 		// back face
 		4, 6, 5,
-		4, 7, 6,
+		4, 6, 7,
 
 		// left face
-		4, 5, 1,
-		4, 1, 0,
+		8,9,10,
+		8,10,11,
 
 		// right face
-		3, 2, 6,
-		3, 6, 7,
+		12,13,14,
+		12,14,15,
 
 		// top face
-		1, 5, 6,
-		1, 6, 2,
+		16,17,18,
+		16,18,19,
 
 		// bottom face
-		4, 0, 3,
-		4, 3, 7
+		20,21,22,
+		20,22,23
 	};
 
 	D3D11_BUFFER_DESC indexBufferDesc;
@@ -399,7 +428,7 @@ bool InitScene()
 	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 
 	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	vertexBufferDesc.ByteWidth = sizeof(Vertex) * 8;
+	vertexBufferDesc.ByteWidth = sizeof(Vertex) * 24; 
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vertexBufferDesc.CPUAccessFlags = 0;
 	vertexBufferDesc.MiscFlags = 0;
@@ -456,6 +485,24 @@ bool InitScene()
 	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
+	// D3DX11CreateShaderResourceViewFromFile is deprecated, use DirectX::CreateWICTextureFromFile instead
+	hr = DirectX::CreateWICTextureFromFile(d3d11Device, L"image2.png",
+		nullptr, &CubesTexture);
+
+	D3D11_SAMPLER_DESC sampDesc;
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	sampDesc.MinLOD = 0;
+	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	hr = d3d11Device->CreateSamplerState(&sampDesc, &CubesTexSamplerState);
+
+
+
 	return true;
 }
 
@@ -486,6 +533,8 @@ void UpdateScene()
 
 	//Set cube2's world space matrix
 	cube2World = Rotation * Scale;
+
+
 }
 
 void DrawScene()
@@ -505,6 +554,8 @@ void DrawScene()
 	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
+	d3d11DevCon->PSSetShaderResources(0, 1, &CubesTexture);
+	d3d11DevCon->PSSetSamplers(0, 1, &CubesTexSamplerState);
 	//Draw the first cube
 	d3d11DevCon->DrawIndexed(36, 0, 0);
 
@@ -514,6 +565,8 @@ void DrawScene()
 	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
+	d3d11DevCon->PSSetShaderResources(0, 1, &CubesTexture);
+	d3d11DevCon->PSSetSamplers(0, 1, &CubesTexSamplerState);
 	//Draw the second cube
 	d3d11DevCon->DrawIndexed(36, 0, 0);
 

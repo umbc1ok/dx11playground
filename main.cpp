@@ -58,13 +58,20 @@ DirectX::XMVECTOR camPosition;
 DirectX::XMVECTOR camTarget;
 DirectX::XMVECTOR camUp;
 
+
+ID3D11BlendState* Transparency;
+ID3D11RasterizerState* CCWcullMode;
+ID3D11RasterizerState* CWcullMode;
+
+
+
 //Global Declarations - Others//
 LPCTSTR WndClassName = L"firstwindow";
 HWND hwnd = NULL;
 HRESULT hr;
 
-const int Width = 800;
-const int Height = 800;
+const int Width = 1920;
+const int Height = 1080;
 
 //Function Prototypes//
 bool InitializeDirect3d11App(HINSTANCE hInstance);
@@ -323,6 +330,10 @@ void CleanUp()
 	cbPerObjectBuffer->Release();
 	rasterizerState->Release();
 
+	Transparency->Release();
+	CCWcullMode->Release();
+	CWcullMode->Release();
+
 }
 
 bool InitScene()
@@ -382,29 +393,29 @@ bool InitScene()
 	};
 
 	DWORD indices[] = {
-		// front face
-		0, 1, 2,
-		0, 2, 3,
+		// Front Face
+		0,  1,  2,
+		0,  2,  3,
 
-		// back face
-		4, 6, 5,
-		4, 6, 7,
+		// Back Face
+		4,  5,  6,
+		4,  6,  7,
 
-		// left face
-		8,9,10,
-		8,10,11,
+		// Top Face
+		8,  9, 10,
+		8, 10, 11,
 
-		// right face
-		12,13,14,
-		12,14,15,
+		// Bottom Face
+		12, 13, 14,
+		12, 14, 15,
 
-		// top face
-		16,17,18,
-		16,18,19,
+		// Left Face
+		16, 17, 18,
+		16, 18, 19,
 
-		// bottom face
-		20,21,22,
-		20,22,23
+		// Right Face
+		20, 21, 22,
+		20, 22, 23
 	};
 
 	D3D11_BUFFER_DESC indexBufferDesc;
@@ -502,6 +513,38 @@ bool InitScene()
 	hr = d3d11Device->CreateSamplerState(&sampDesc, &CubesTexSamplerState);
 
 
+	D3D11_BLEND_DESC blendDesc;
+	ZeroMemory(&blendDesc, sizeof(blendDesc));
+
+	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
+	ZeroMemory(&rtbd, sizeof(rtbd));
+
+	rtbd.BlendEnable = true;
+	rtbd.SrcBlend = D3D11_BLEND_SRC_COLOR;
+	rtbd.DestBlend = D3D11_BLEND_BLEND_FACTOR;
+	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
+	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
+	rtbd.DestBlendAlpha = D3D11_BLEND_ZERO;
+	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
+
+	blendDesc.AlphaToCoverageEnable = false;
+	blendDesc.RenderTarget[0] = rtbd;
+
+	d3d11Device->CreateBlendState(&blendDesc, &Transparency);
+
+	D3D11_RASTERIZER_DESC cmdesc;
+	ZeroMemory(&cmdesc, sizeof(D3D11_RASTERIZER_DESC));
+
+	cmdesc.FillMode = D3D11_FILL_SOLID;
+	cmdesc.CullMode = D3D11_CULL_BACK;
+
+	cmdesc.FrontCounterClockwise = true;
+	hr = d3d11Device->CreateRasterizerState(&cmdesc, &CCWcullMode);
+
+	cmdesc.FrontCounterClockwise = false;
+	hr = d3d11Device->CreateRasterizerState(&cmdesc, &CWcullMode);
+
 
 	return true;
 }
@@ -548,29 +591,82 @@ void DrawScene()
 	d3d11DevCon->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 	///////////////**************new**************////////////////////
 
+
+	//"fine-tune" the blending equation
+	float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
+	//Set the default blend state (no blending) for opaque objects
+	d3d11DevCon->OMSetBlendState(0, 0, 0xffffffff);
+
+
+	// RENDER OPAQUE OBJECTS FIRST
+
+	//
+
+	d3d11DevCon->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
+
+	DirectX::XMVECTOR cubePos = DirectX::XMVectorZero();
+	cubePos = XMVector3TransformCoord(cubePos, cube1World);
+
+	float distX = DirectX::XMVectorGetX(cubePos) - DirectX::XMVectorGetX(camPosition);
+	float distY = DirectX::XMVectorGetY(cubePos) - DirectX::XMVectorGetY(camPosition);
+	float distZ = DirectX::XMVectorGetZ(cubePos) - DirectX::XMVectorGetZ(camPosition);
+
+	float cube1Dist = distX * distX + distY * distY + distZ * distZ;
+
+	cubePos = DirectX::XMVectorZero();
+
+	cubePos = XMVector3TransformCoord(cubePos, cube2World);
+
+	distX = DirectX::XMVectorGetX(cubePos) - DirectX::XMVectorGetX(camPosition);
+	distY = DirectX::XMVectorGetY(cubePos) - DirectX::XMVectorGetY(camPosition);
+	distZ = DirectX::XMVectorGetZ(cubePos) - DirectX::XMVectorGetZ(camPosition);
+
+	float cube2Dist = distX * distX + distY * distY + distZ * distZ;
+
+	//If the first cubes distance is less than the second cubes
+	if (cube1Dist < cube2Dist)
+	{
+		//Switch the order in which the cubes are drawn
+		DirectX::XMMATRIX tempMatrix = cube1World;
+		cube1World = cube2World;
+		cube2World = tempMatrix;
+	}
+
 	// UPDATE WVP MATRIX and send it to constant buffer
 	WVP = cube1World * camView * camProjection;
 	cbPerObj.WVP = XMMatrixTranspose(WVP);
 	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
-
 	d3d11DevCon->PSSetShaderResources(0, 1, &CubesTexture);
 	d3d11DevCon->PSSetSamplers(0, 1, &CubesTexSamplerState);
-	//Draw the first cube
+
+
+	d3d11DevCon->RSSetState(CCWcullMode);
 	d3d11DevCon->DrawIndexed(36, 0, 0);
+
+	d3d11DevCon->RSSetState(CWcullMode);
+	d3d11DevCon->DrawIndexed(36, 0, 0);
+
+
+
+
+
 
 	// UPDATE WVP MATRIX and send it to constant buffer
 	WVP = cube2World * camView * camProjection;
 	cbPerObj.WVP = XMMatrixTranspose(WVP);
 	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
-
 	d3d11DevCon->PSSetShaderResources(0, 1, &CubesTexture);
 	d3d11DevCon->PSSetSamplers(0, 1, &CubesTexSamplerState);
 	//Draw the second cube
+	d3d11DevCon->RSSetState(CCWcullMode);
 	d3d11DevCon->DrawIndexed(36, 0, 0);
 
+	d3d11DevCon->RSSetState(CWcullMode);
+	d3d11DevCon->DrawIndexed(36, 0, 0);
 	//Present the backbuffer to the screen
+
 	SwapChain->Present(0, 0);
 }
 

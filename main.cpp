@@ -64,6 +64,25 @@ ID3D11RasterizerState* CCWcullMode;
 ID3D11RasterizerState* CWcullMode;
 
 
+ID3D11Buffer* cbPerFrameBuffer;
+
+// Variables used to keep track of time
+double countsPerSecond = 0.0;
+__int64 CounterStart = 0;
+
+int frameCount = 0;
+int fps = 0;
+
+__int64 frameTimeOld = 0;
+double frameTime;
+
+
+void StartTimer();
+double GetTime();
+double GetFrameTime();
+
+
+
 
 //Global Declarations - Others//
 LPCTSTR WndClassName = L"firstwindow";
@@ -77,7 +96,7 @@ const int Height = 1080;
 bool InitializeDirect3d11App(HINSTANCE hInstance);
 void CleanUp();
 bool InitScene();
-void UpdateScene();
+void UpdateScene(double time);
 void DrawScene();
 
 bool InitializeWindow(HINSTANCE hInstance,
@@ -106,8 +125,30 @@ struct Vertex	//Overloaded Vertex Structure
 struct cbPerObject
 {
 	DirectX::XMMATRIX WVP; // wvp = world view projection
+	DirectX::XMMATRIX World;
 };
 cbPerObject cbPerObj;
+
+struct Light
+{
+	Light()
+	{
+		ZeroMemory(this, sizeof(Light));
+	}
+	DirectX::XMFLOAT3 dir;
+	float pad;
+	DirectX::XMFLOAT4 ambient;
+	DirectX::XMFLOAT4 diffuse;
+};
+
+Light light;
+
+struct cbPerFrame
+{
+	Light  light;
+};
+
+cbPerFrame constbuffPerFrame;
 
 
 
@@ -549,10 +590,10 @@ bool InitScene()
 	return true;
 }
 
-void UpdateScene()
+void UpdateScene(double time)
 {
 	//Keep the cubes rotating
-	rot += .0005f;
+	rot += 1.0f * time;
 	if (rot > 6.28f)
 		rot = 0.0f;
 
@@ -599,7 +640,7 @@ void DrawScene()
 
 
 	// RENDER OPAQUE OBJECTS FIRST
-
+	// DO IT HERE HERE HERE HERE HERE HERE HERE HERE
 	//
 
 	d3d11DevCon->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
@@ -648,10 +689,6 @@ void DrawScene()
 	d3d11DevCon->DrawIndexed(36, 0, 0);
 
 
-
-
-
-
 	// UPDATE WVP MATRIX and send it to constant buffer
 	WVP = cube2World * camView * camProjection;
 	cbPerObj.WVP = XMMatrixTranspose(WVP);
@@ -692,7 +729,17 @@ int messageloop() {
 		}
 		else {
 			// run game code            
-			UpdateScene();
+			frameCount++;
+			if (GetTime() > 1.0f)
+			{
+				fps = frameCount;
+				frameCount = 0;
+				StartTimer();
+			}
+
+			frameTime = GetFrameTime();
+
+			UpdateScene(frameTime);
 			DrawScene();
 		}
 	}
@@ -722,3 +769,35 @@ LRESULT CALLBACK WndProc(HWND hwnd,
 		lParam);
 }
 
+void StartTimer()
+{
+	LARGE_INTEGER frequencyCount;
+	QueryPerformanceFrequency(&frequencyCount);
+
+	countsPerSecond = double(frequencyCount.QuadPart);
+
+	QueryPerformanceCounter(&frequencyCount);
+	CounterStart = frequencyCount.QuadPart;
+}
+
+double GetTime()
+{
+	LARGE_INTEGER currentTime;
+	QueryPerformanceCounter(&currentTime);
+	return double(currentTime.QuadPart - CounterStart) / countsPerSecond;
+}
+
+double GetFrameTime()
+{
+	LARGE_INTEGER currentTime;
+	__int64 tickCount;
+	QueryPerformanceCounter(&currentTime);
+
+	tickCount = currentTime.QuadPart - frameTimeOld;
+	frameTimeOld = currentTime.QuadPart;
+
+	if (tickCount < 0.0f)
+		tickCount = 0.0f;
+
+	return float(tickCount) / countsPerSecond;
+}

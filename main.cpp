@@ -111,15 +111,23 @@ LRESULT CALLBACK WndProc(HWND hWnd,
 	LPARAM lParam);
 
 //Vertex Structure and Vertex Layout (Input Layout)//
-struct Vertex	//Overloaded Vertex Structure
+struct Vertex    //Overloaded Vertex Structure
 {
-	Vertex() {}
 	Vertex(float x, float y, float z,
-		float tu, float tv)
-		: pos(x, y, z), texCoord(tu,tv) {}
+		float u, float v,
+		float nx, float ny, float nz)
+		: pos(x, y, z), texCoord(u, v), normal(nx, ny, nz) {}
 
 	DirectX::XMFLOAT3 pos;
 	DirectX::XMFLOAT2 texCoord;
+	DirectX::XMFLOAT3 normal;
+};
+
+D3D11_INPUT_ELEMENT_DESC layout[] =
+{
+	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	{ "NORMAL",     0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 20, D3D11_INPUT_PER_VERTEX_DATA, 0}
 };
 
 struct cbPerObject
@@ -150,13 +158,6 @@ struct cbPerFrame
 
 cbPerFrame constbuffPerFrame;
 
-
-
-D3D11_INPUT_ELEMENT_DESC layout[] =
-{
-	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-};
 UINT numElements = ARRAYSIZE(layout);
 
 int WINAPI WinMain(HINSTANCE hInstance,	//Main windows function
@@ -375,6 +376,9 @@ void CleanUp()
 	CCWcullMode->Release();
 	CWcullMode->Release();
 
+	cbPerFrameBuffer->Release();
+
+
 }
 
 bool InitScene()
@@ -393,44 +397,48 @@ bool InitScene()
 	d3d11DevCon->VSSetShader(VS, 0, 0);
 	d3d11DevCon->PSSetShader(PS, 0, 0);
 
+
+	light.dir = DirectX::XMFLOAT3(0.25f, 0.5f, -1.0f);
+	light.ambient = DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+	light.diffuse = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	//Create the vertex buffer
 	Vertex v[] =
 	{
 		// Front Face
-		Vertex(-1.0f, -1.0f, -1.0f, 0.0f, 1.0f),
-		Vertex(-1.0f,  1.0f, -1.0f, 0.0f, 0.0f),
-		Vertex(1.0f,  1.0f, -1.0f, 1.0f, 0.0f),
-		Vertex(1.0f, -1.0f, -1.0f, 1.0f, 1.0f),
+		Vertex(-1.0f, -1.0f, -1.0f, 0.0f, 1.0f,-1.0f, -1.0f, -1.0f),
+		Vertex(-1.0f,  1.0f, -1.0f, 0.0f, 0.0f,-1.0f,  1.0f, -1.0f),
+		Vertex(1.0f,  1.0f, -1.0f, 1.0f, 0.0f, 1.0f,  1.0f, -1.0f),
+		Vertex(1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f),
 
 		// Back Face
-		Vertex(-1.0f, -1.0f, 1.0f, 1.0f, 1.0f),
-		Vertex(1.0f, -1.0f, 1.0f, 0.0f, 1.0f),
-		Vertex(1.0f,  1.0f, 1.0f, 0.0f, 0.0f),
-		Vertex(-1.0f,  1.0f, 1.0f, 1.0f, 0.0f),
+		Vertex(-1.0f, -1.0f, 1.0f, 1.0f, 1.0f,-1.0f, -1.0f, 1.0f),
+		Vertex(1.0f, -1.0f, 1.0f, 0.0f, 1.0f, 1.0f, -1.0f, 1.0f),
+		Vertex(1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 1.0f,  1.0f, 1.0f),
+		Vertex(-1.0f,  1.0f, 1.0f, 1.0f, 0.0f,-1.0f,  1.0f, 1.0f),
 
 		// Top Face
-		Vertex(-1.0f, 1.0f, -1.0f, 0.0f, 1.0f),
-		Vertex(-1.0f, 1.0f,  1.0f, 0.0f, 0.0f),
-		Vertex(1.0f, 1.0f,  1.0f, 1.0f, 0.0f),
-		Vertex(1.0f, 1.0f, -1.0f, 1.0f, 1.0f),
+		Vertex(-1.0f, 1.0f, -1.0f, 0.0f, 1.0f,-1.0f, 1.0f, -1.0f),
+		Vertex(-1.0f, 1.0f,  1.0f, 0.0f, 0.0f,-1.0f, 1.0f,  1.0f),
+		Vertex(1.0f, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f, 1.0f,  1.0f),
+		Vertex(1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f),
 
 		// Bottom Face
-		Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 1.0f),
-		Vertex(1.0f, -1.0f, -1.0f, 0.0f, 1.0f),
-		Vertex(1.0f, -1.0f,  1.0f, 0.0f, 0.0f),
-		Vertex(-1.0f, -1.0f,  1.0f, 1.0f, 0.0f),
+		Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 1.0f,-1.0f, -1.0f, -1.0f),
+		Vertex(1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 1.0f, -1.0f, -1.0f),
+		Vertex(1.0f, -1.0f,  1.0f, 0.0f, 0.0f, 1.0f, -1.0f,  1.0f),
+		Vertex(-1.0f, -1.0f,  1.0f, 1.0f, 0.0f,-1.0f, -1.0f,  1.0f),
 
 		// Left Face
-		Vertex(-1.0f, -1.0f,  1.0f, 0.0f, 1.0f),
-		Vertex(-1.0f,  1.0f,  1.0f, 0.0f, 0.0f),
-		Vertex(-1.0f,  1.0f, -1.0f, 1.0f, 0.0f),
-		Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 1.0f),
+		Vertex(-1.0f, -1.0f,  1.0f, 0.0f, 1.0f,-1.0f, -1.0f,  1.0f),
+		Vertex(-1.0f,  1.0f,  1.0f, 0.0f, 0.0f,-1.0f,  1.0f,  1.0f),
+		Vertex(-1.0f,  1.0f, -1.0f, 1.0f, 0.0f,-1.0f,  1.0f, -1.0f),
+		Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 1.0f,-1.0f, -1.0f, -1.0f),
 
 		// Right Face
-		Vertex(1.0f, -1.0f, -1.0f, 0.0f, 1.0f),
-		Vertex(1.0f,  1.0f, -1.0f, 0.0f, 0.0f),
-		Vertex(1.0f,  1.0f,  1.0f, 1.0f, 0.0f),
-		Vertex(1.0f, -1.0f,  1.0f, 1.0f, 1.0f),
+		Vertex(1.0f, -1.0f, -1.0f, 0.0f, 1.0f, 1.0f, -1.0f, -1.0f),
+		Vertex(1.0f,  1.0f, -1.0f, 0.0f, 0.0f, 1.0f,  1.0f, -1.0f),
+		Vertex(1.0f,  1.0f,  1.0f, 1.0f, 0.0f, 1.0f,  1.0f,  1.0f),
+		Vertex(1.0f, -1.0f,  1.0f, 1.0f, 1.0f, 1.0f, -1.0f,  1.0f),
 	};
 
 	DWORD indices[] = {
@@ -514,10 +522,8 @@ bool InitScene()
 	viewport.TopLeftY = 0;
 	viewport.Width = Width;
 	viewport.Height = Height;
-	///////////////**************new**************////////////////////
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
-	///////////////**************new**************////////////////////
 
 	//Set the Viewport
 	d3d11DevCon->RSSetViewports(1, &viewport);
@@ -587,6 +593,17 @@ bool InitScene()
 	hr = d3d11Device->CreateRasterizerState(&cmdesc, &CWcullMode);
 
 
+	D3D11_BUFFER_DESC cbbd;
+	ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+
+	cbbd.Usage = D3D11_USAGE_DEFAULT;
+	cbbd.ByteWidth = sizeof(cbPerFrame);
+	cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbbd.CPUAccessFlags = 0;
+	cbbd.MiscFlags = 0;
+
+	hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
+
 	return true;
 }
 
@@ -624,13 +641,19 @@ void UpdateScene(double time)
 void DrawScene()
 {
 	//Clear our backbuffer
-	float bgColor[4] = { (0.0f, 0.0f, 0.0f, 0.0f) };
+	float bgColor[4] = { 0.2f, 0.2f, 0.2f, 1.0f };
+
 	d3d11DevCon->ClearRenderTargetView(renderTargetView, bgColor);
 
 	///////////////**************new**************////////////////////
 	//Refresh the Depth/Stencil view
 	d3d11DevCon->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 	///////////////**************new**************////////////////////
+
+
+	constbuffPerFrame.light = light;
+	d3d11DevCon->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &constbuffPerFrame, 0, 0);
+	d3d11DevCon->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);
 
 
 	//"fine-tune" the blending equation
@@ -641,6 +664,33 @@ void DrawScene()
 
 	// RENDER OPAQUE OBJECTS FIRST
 	// DO IT HERE HERE HERE HERE HERE HERE HERE HERE
+	// UPDATE WVP MATRIX and send it to constant buffer
+	WVP = cube1World * camView * camProjection;
+	cbPerObj.World = XMMatrixTranspose(cube1World);
+	cbPerObj.WVP = XMMatrixTranspose(WVP);
+	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
+	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+	d3d11DevCon->PSSetShaderResources(0, 1, &CubesTexture);
+	d3d11DevCon->PSSetSamplers(0, 1, &CubesTexSamplerState);
+
+	d3d11DevCon->RSSetState(CWcullMode);
+	d3d11DevCon->DrawIndexed(36, 0, 0);
+
+
+	// UPDATE WVP MATRIX and send it to constant buffer
+	WVP = cube2World * camView * camProjection;
+	cbPerObj.World = XMMatrixTranspose(cube2World);
+	cbPerObj.WVP = XMMatrixTranspose(WVP);
+	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
+	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+	d3d11DevCon->PSSetShaderResources(0, 1, &CubesTexture);
+	d3d11DevCon->PSSetSamplers(0, 1, &CubesTexSamplerState);
+	//Draw the second cube
+	d3d11DevCon->RSSetState(CWcullMode);
+	d3d11DevCon->DrawIndexed(36, 0, 0);
+
+
+
 	//
 
 	d3d11DevCon->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
@@ -673,8 +723,10 @@ void DrawScene()
 		cube2World = tempMatrix;
 	}
 
+	/*
 	// UPDATE WVP MATRIX and send it to constant buffer
 	WVP = cube1World * camView * camProjection;
+	cbPerObj.World = XMMatrixTranspose(cube1World);
 	cbPerObj.WVP = XMMatrixTranspose(WVP);
 	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
@@ -691,6 +743,7 @@ void DrawScene()
 
 	// UPDATE WVP MATRIX and send it to constant buffer
 	WVP = cube2World * camView * camProjection;
+	cbPerObj.World = XMMatrixTranspose(cube2World);
 	cbPerObj.WVP = XMMatrixTranspose(WVP);
 	d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 	d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
@@ -703,7 +756,7 @@ void DrawScene()
 	d3d11DevCon->RSSetState(CWcullMode);
 	d3d11DevCon->DrawIndexed(36, 0, 0);
 	//Present the backbuffer to the screen
-
+	*/
 	SwapChain->Present(0, 0);
 }
 

@@ -8,11 +8,9 @@ public:
 	Game() {};
 	~Game() {};
 	void DrawScene(ID3D11Device* d3d11Device, ID3D11DeviceContext* d3d11DevCon, IDXGISwapChain* SwapChain, ID3D11RenderTargetView* renderTargetView, ID3D11DepthStencilView* depthStencilView, ID3D11Buffer* cbPerObjectBuffer);
-
 	bool InitScene(ID3D11Device* d3d11Device, ID3D11DeviceContext* d3d11DevCon, HRESULT &hr, ID3D11Buffer* cbPerObjectBuffer);
 	void UpdateScene(double time);
 	void CleanUp();
-
 private:
 	Light light; // this is temporarily, I guess it could be a list of lights in the future, we will see
 	ID3D11VertexShader* VS;

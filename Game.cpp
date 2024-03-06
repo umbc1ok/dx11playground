@@ -176,8 +176,9 @@ bool Game::InitScene(ID3D11Device* d3d11Device, ID3D11DeviceContext* d3d11DevCon
 	d3d11DevCon->PSSetShader(PS, 0, 0);
 
 	
-
-	light.dir = DirectX::XMFLOAT3(0.25f, 0.5f, -1.0f);
+	light.pos = DirectX::XMFLOAT3(0.0f, 5.0f, 0.0f);
+	light.att = DirectX::XMFLOAT3(0.0f, 0.2f, 0.0f);
+	light.range = 200.0f;
 	light.ambient = DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
 	light.diffuse = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	//Create the vertex buffer

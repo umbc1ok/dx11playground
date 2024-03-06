@@ -19,8 +19,14 @@ struct Light
 	{
 		ZeroMemory(this, sizeof(Light));
 	}
+
+	// research why the hell do we use these "pad1" and "pad2" variables
 	DirectX::XMFLOAT3 dir;
-	float pad;
+	float pad1;
+	DirectX::XMFLOAT3 pos;
+	float range;
+	DirectX::XMFLOAT3 att;
+	float pad2;
 	DirectX::XMFLOAT4 ambient;
 	DirectX::XMFLOAT4 diffuse;
 };
